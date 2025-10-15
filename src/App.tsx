@@ -1,33 +1,46 @@
 import { useState } from 'react';
 import { Sparkles, Download, Loader2, ImageIcon } from 'lucide-react';
+import OpenAI from 'openai';
 
 function App() {
   const [prompt, setPrompt] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<Array<{ prompt: string; url: string }>>([]);
+  const [error, setError] = useState('');
+
+  const openai = new OpenAI({
+    apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+    dangerouslyAllowBrowser: true // Only for development! Use a backend in production
+  });
 
   const generateImage = async () => {
     if (!prompt.trim()) return;
 
     setLoading(true);
+    setError('');
 
-    // Using Pollinations.ai - free API, no key required
-    const encodedPrompt = encodeURIComponent(prompt);
-    const newImageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${Date.now()}`;
+    try {
+      const response = await openai.images.generate({
+        model: "dall-e-3",
+        prompt: prompt,
+        n: 1,
+        size: "1024x1024",
+        quality: "standard",
+      });
 
-    // Preload the image
-    const img = new Image();
-    img.onload = () => {
-      setImageUrl(newImageUrl);
-      setHistory(prev => [{ prompt, url: newImageUrl }, ...prev.slice(0, 5)]);
+      const newImageUrl = response.data[0].url;
+      
+      if (newImageUrl) {
+        setImageUrl(newImageUrl);
+        setHistory(prev => [{ prompt, url: newImageUrl }, ...prev.slice(0, 5)]);
+      }
+    } catch (err: any) {
+      console.error('Error generating image:', err);
+      setError(err.message || 'Failed to generate image. Please try again.');
+    } finally {
       setLoading(false);
-    };
-    img.onerror = () => {
-      setLoading(false);
-      alert('Failed to generate image. Please try again.');
-    };
-    img.src = newImageUrl;
+    }
   };
 
   const handleDownload = async () => {
@@ -45,7 +58,7 @@ function App() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      alert('Failed to download image');
+      setError('Failed to download image');
     }
   };
 
@@ -98,6 +111,13 @@ function App() {
                 )}
               </button>
             </div>
+            
+            {/* Error Message */}
+            {error && (
+              <div className="mt-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-sm">
+                {error}
+              </div>
+            )}
           </div>
         </div>
 
@@ -129,7 +149,7 @@ function App() {
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-12 shadow-2xl border border-slate-700">
               <div className="flex flex-col items-center justify-center gap-4">
                 <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
-                <p className="text-slate-300 text-lg">Creating your masterpiece...</p>
+                <p className="text-slate-300 text-lg">Creating your masterpiece with DALL-E...</p>
               </div>
             </div>
           </div>
@@ -177,7 +197,7 @@ function App() {
 
       {/* Footer */}
       <div className="text-center py-8 text-slate-500 text-sm">
-        <p>Powered by Pollinations.ai • Free AI Image Generation</p>
+        <p>Powered by OpenAI DALL-E 3 • AI Image Generation</p>
       </div>
     </div>
   );
